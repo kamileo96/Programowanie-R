@@ -2,7 +2,8 @@ import numpy as np, matplotlib.pyplot as plt, matplotlib.animation as ani
 
 FPS = 120
 #FPS = int(input("Podaj liczbę klatek FPS animacji (polecane 120): "))
-#Tutaj zmieniamy z animacji do renderowania!
+
+#Tutaj zmieniamy z samej animacji do renderowania!
 create_gif = False
 if create_gif: FPS = 50
 
@@ -19,7 +20,7 @@ m = float(input("Podaj masę m[kg]: "))
 h = float(input("Podaj wysokość h[m]: "))
 B = float(input("Podaj współczynnik oporu B[kg/m]: "))
 v0 = float(input("Podaj prędkość v0 [m/s]: "))
-alp = str(input("Podaj kąt alpha jaki tworzy v0 z osią Ox w radianach. \n \
+alp = str(input("Podaj kąt alpha jaki tworzy v0 z osią Ox w radianach. \n\
 Dodaj na końcu 'pi' jeśli chcesz wyrazić ułamek pi lub 'deg' jeśli chcesz podać w stopniach: "))
 
 #errormessages
@@ -28,15 +29,37 @@ if m<0: print("Proszę wybierz pocisk z dostępnych na ziemi materiałów."), ex
 if h<0: print("Pocisk utknął w ziemi"), exit()
 if B<0: print("Ciekawe...")#, exit()
 if not alp[0].isdigit: print("Chyba się nie zrozumieliśmy. Podaj float i na końcu określ jego jednostkę."), exit()
-if h>1000 or v0>100: print("Ostrożnie: dla wysokich parametrów h oraz v0 obliczenia potrafią być długie a animacja powolna.")
+if h>=1000 or v0>=100: print("Ostrożnie: dla wysokich parametrów h oraz v0 obliczenia potrafią być długie a animacja powolna.")
 
 #konwerter jednostek alp
 if alp[-2:] == "pi":
-    alp = float(alp[:-2])
+    alp = float(alp[:-2])*np.pi
 elif alp[-3:] == "deg":
     alp = np.deg2rad(float(alp[:-3]))
 else:
     alp = float(alp)
+
+#do animacji po odbiciu, dla max_odb = 0 animacja do pierwszego odbicia
+odb = 0
+max_odb = 0
+max_odb = int(input("Podaj liczbę odbić n>=0 które chcesz zobaczyć. Podaj zero by nie animować żadnego odbicia: " )) #<-zakomentować jeśli niepotrzebne
+
+#skalowanie - lekka optymalizacja dla dużych wysokości.
+is_scaled = False
+vy0 = v0*np.sin(alp)
+if vy0<0 and max_odb == 0:
+    expected_h = h
+else:
+    expected_h = h + (vy0*vy0)/(2*(-g)) #energetyczne oszacowanie, nie do końca dokładne dla dużych B
+
+scale = int(np.log10(expected_h))
+
+if scale>=3: 
+    scale = scale - 2
+    h = h/(10**scale)
+    v0 = v0/(10**scale)
+    g = g/(10**scale)
+    is_scaled = True
 
 #warunki początkowe
 x = 0.
@@ -46,10 +69,7 @@ ys = np.array([])
 vx = v0*np.cos(alp)
 vy = v0*np.sin(alp)
 
-#do animacji po odbiciu, dla max_odb = 0 animacja do pierwszego odbicia
-odb = 0
-max_odb = 0
-max_odb = int(input("Podaj liczbę odbić n>=0 które chcesz zobaczyć. Podaj zero by nie animować żadnego odbicia: " )) #<-zakomentować jeśli niepotrzebne
+
 #Najpierw generuję dane, żeby nie spowalniać i tak już wolnej animacji
 print("Generuję dane", end="\r")
 count = 0
@@ -93,8 +113,16 @@ ns = np.arange(len(xs))
 #przezroczysty wykres jako płótno (canvas) dla ustalenia osi
 plt.plot(xs,ys, alpha=0)
 #opisy osi etc
-plt.xlabel("x[m]")
-plt.ylabel("y[m]")
+if not is_scaled:
+    plt.xlabel("x[m]")
+    plt.ylabel("y[m]")
+else:
+    plt.xlabel(f"x[m·$10^{scale}$]")
+    plt.ylabel(f"y[m·$10^{scale}$]")
+#Dla zachowania ścisłości przy skalowaniu
+
+
+
 plt.title("Animacja rzutu")
 #plt.grid("major") optional, usunięte dla zwiększenia płynności 
 #(chociaż mamy włączony blitting, więc możliwe że niewiele zmienia, bo grid jest nieruchomy)
@@ -104,7 +132,7 @@ plt.gca().set_aspect('equal', adjustable='box')
 #limity proponowane przez nasze canvas:
 xmin, xmax, ymin, ymax = plt.axis()
 
-plt.ylim(bottom=0, top=ymax+1)
+plt.ylim(bottom=0, top=ymax*1.05)
 plt.xlim(left=xmin-ymax*0.1,right=xmax+ymax*0.1)
 #drobne poprawki, żeby kula mieściła się w kadrze.
 #długi rzut horyzontalny nie jest możliwy, ale dla wysokiego rzutu pionowego potrzebujemy skalujących się limitów.
@@ -124,7 +152,7 @@ def animate(i):
     return trace,ball,
 
 #niestety, chociaż matematycznie animacja powinna odbywać się w czasie rzeczywistym
-#(zmierzone z animacji g powinno wynosić 9,81)
+#(zmierzone z animacji g powinno wynosić 9,81, a czas trwania powinien trwać len(xs)*dt)
 #oraz liczba klatek powinna wynosić FPS, to w praktyce animacja często zostaje z tyłu.
 Animation = ani.FuncAnimation(fig,animate,frames=ns,interval=dt*1000,blit=True,repeat=True)
 
@@ -143,3 +171,14 @@ if create_gif:
 #możnaby też adaptacyjnie zmieniać liczbę animowanych klatek dla długich animacji:
 #if len(xs)>???: xs = xs[::2]...
 #lub short = len(xs)%???, xs = xs[::short]...
+
+#innym, może najlepszym sposobem byłoby skalowanie całej animacji: h = h/10^n...
+#i następnie oznaczenie osi [10^n m]
+#musielibyśmy jednak przed animacją zgadnąć, że będzie ona powolna.
+
+#po zastanowieniu umieściłem ten warunek, dla dużych h. 
+#pozostałoby przeprowadzić prasymulację, żeby zobaczyć czy duże v0 nie spowoduje opóźnień animacji.
+#zamiast tego decyduję się na szacowanie energetyczne.
+#niestety zmiana skali w niewielkim stopniu optymalizuje animację
+
+
