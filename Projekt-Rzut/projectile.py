@@ -1,17 +1,26 @@
 import numpy as np, matplotlib.pyplot as plt, matplotlib.animation as ani
+
 FPS = 120
 #FPS = int(input("Podaj liczbę klatek FPS animacji (polecane 120): "))
+#Tutaj zmieniamy z animacji do renderowania!
+create_gif = False
+if create_gif: FPS = 50
+
 dt = 1/FPS
 
 #t = 0. (niepotrzebne, bo dt jest stałe)
 
-g = -9.81
+g = -9.81#[m/s^2]
 
+m, h, B, v0, alp = 1, 10, 0.035, 7, "45deg" #deafult values (edit: dla źle podanych i tak nie działa)
+
+#input:
 m = float(input("Podaj masę m[kg]: "))
 h = float(input("Podaj wysokość h[m]: "))
 B = float(input("Podaj współczynnik oporu B[kg/m]: "))
 v0 = float(input("Podaj prędkość v0 [m/s]: "))
-alp = str(input("Podaj kąt alpha jaki tworzy v0 z osią Ox w radianach. Dodaj pi jeśli chcesz wyrazić ułamek pi lub deg jeśli chcesz podać w stopniach: "))
+alp = str(input("Podaj kąt alpha jaki tworzy v0 z osią Ox w radianach. \n \
+Dodaj na końcu 'pi' jeśli chcesz wyrazić ułamek pi lub 'deg' jeśli chcesz podać w stopniach: "))
 
 #errormessages
 if m==0: print("Nie animujemy fotonów."), exit()
@@ -21,7 +30,7 @@ if B<0: print("Ciekawe...")#, exit()
 if not alp[0].isdigit: print("Chyba się nie zrozumieliśmy. Podaj float i na końcu określ jego jednostkę."), exit()
 if h>1000 or v0>100: print("Ostrożnie: dla wysokich parametrów h oraz v0 obliczenia potrafią być długie a animacja powolna.")
 
-
+#konwerter jednostek alp
 if alp[-2:] == "pi":
     alp = float(alp[:-2])
 elif alp[-3:] == "deg":
@@ -29,7 +38,7 @@ elif alp[-3:] == "deg":
 else:
     alp = float(alp)
 
-    
+#warunki początkowe
 x = 0.
 y = h
 xs = np.array([])
@@ -40,7 +49,7 @@ vy = v0*np.sin(alp)
 #do animacji po odbiciu, dla max_odb = 0 animacja do pierwszego odbicia
 odb = 0
 max_odb = 0
-max_odb = int(input("Podaj liczbę odbić n>=0 które chcesz zobaczyć. Podaj zero by nie animować żadnego odbicia: " ))
+max_odb = int(input("Podaj liczbę odbić n>=0 które chcesz zobaczyć. Podaj zero by nie animować żadnego odbicia: " )) #<-zakomentować jeśli niepotrzebne
 #Najpierw generuję dane, żeby nie spowalniać i tak już wolnej animacji
 print("Generuję dane", end="\r")
 count = 0
@@ -83,24 +92,35 @@ fig = plt.figure()
 ns = np.arange(len(xs))
 #przezroczysty wykres jako płótno (canvas) dla ustalenia osi
 plt.plot(xs,ys, alpha=0)
-
-print(plt.axis())
+#opisy osi etc
+plt.xlabel("x[m]")
+plt.ylabel("y[m]")
+plt.title("Animacja rzutu")
+#plt.grid("major") optional, usunięte dla zwiększenia płynności 
+#(chociaż mamy włączony blitting, więc możliwe że niewiele zmienia, bo grid jest nieruchomy)
 
 #plt.axis('equal') - obsolete, nie działa
 plt.gca().set_aspect('equal', adjustable='box')
+#limity proponowane przez nasze canvas:
 xmin, xmax, ymin, ymax = plt.axis()
+
 plt.ylim(bottom=0, top=ymax+1)
 plt.xlim(left=xmin-ymax*0.1,right=xmax+ymax*0.1)
+#drobne poprawki, żeby kula mieściła się w kadrze.
+#długi rzut horyzontalny nie jest możliwy, ale dla wysokiego rzutu pionowego potrzebujemy skalujących się limitów.
+#(rozmiar kuli skaluje się z wielkością wykresu)
 
-#marker
-ball, = plt.plot([0],[h],'ro',ms=20,mfc='r')
+
 #ślad
 trace, = plt.plot([0],[h])
+#marker
+ball, = plt.plot([0],[h],'ro',ms=20,mfc='r')
+
 
 
 def animate(i):
-    ball.set_data(xs[i],ys[i])
     trace.set_data(xs[:i],ys[:i])
+    ball.set_data(xs[i],ys[i])
     return trace,ball,
 
 #niestety, chociaż matematycznie animacja powinna odbywać się w czasie rzeczywistym
@@ -109,5 +129,17 @@ def animate(i):
 Animation = ani.FuncAnimation(fig,animate,frames=ns,interval=dt*1000,blit=True,repeat=True)
 
 
-
 plt.show()
+
+
+#Możliwym fixem jest zmiejszenie ilości klatek do obsługiwanej przez .gif (50) i zapisanie animacji.
+if create_gif:
+    print("Renderuję animację...")
+    Animation.save("animation.gif",fps=FPS)
+    print("Gotowe")
+#można sprawdzić, że czas takiej animacji wynosi mniej więcej len(xs)*dt, czyli się zgadza.
+
+
+#możnaby też adaptacyjnie zmieniać liczbę animowanych klatek dla długich animacji:
+#if len(xs)>???: xs = xs[::2]...
+#lub short = len(xs)%???, xs = xs[::short]...
